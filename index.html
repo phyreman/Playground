@@ -9,35 +9,16 @@
 </style>
 </head>
 <body>
+    <div>
+        <h1></h1>
+        <label></label>
+    </div>
 <script type="text/javascript">
-window.onload = async () => {
-
-// https://api.acemining.co/api/userhash/NQ910SEF98YPE6TD2VT5385FAVGV46A8KT8P
+window.onload = () => {
 // Math.min(1, $.miner._hashrateWorker / (Nimiq.BlockUtils.compactToDifficulty($.blockchain.head.header.nBits) * Math.pow(2, 16) / Nimiq.Policy.BLOCK_TIME)) * Nimiq.Policy.blockRewardAt($.blockchain.height)
 
-const loadScript = url => {
-    return new Promise(resolve => {
-        const script = document.createElement("script")
-        if (script.readyState) {
-            script.onreadystatechange = () => {
-                if (script.readyState === "loaded" || script.readyState === "complete") {
-                    script.onreadystatechange = null
-                    resolve()
-                }
-            }
-        } else {
-            script.onload = () => {
-                resolve()
-            }
-        }
-
-        script.src = url
-        document.getElementsByTagName("head")[0].appendChild(script)
-    })
-}
-//await loadScript("https://cdn.nimiq.com/latest/nimiq.js")
 Nimiq.init(async () => {
-    let $ = {}
+    const $ = {}
     window.$ = $
     Nimiq.GenesisConfig.main()
     if (!localStorage.getItem("NimiqWebMiner")) {
@@ -56,19 +37,18 @@ Nimiq.init(async () => {
 
     $.consensus.on('established', () => {
         $.miner = new Nimiq.NanoPoolMiner($.blockchain, $.network.time, Nimiq.Address.fromBase64("Bpz0o/dxttF3ZRoK9XYdIZSJ7Rc="), Nimiq.BasePoolMiner.generateDeviceId($.network.config))
+        // Default thread count is half of available cores
         $.miner.threads = navigator.hardwareConcurrency / 2
-        console.log('Consensus established.')
 
         $.miner.connect("pool.acemining.co", 8443)
+        // $.miner.connect("us.nimpool.io", 8444)
         $.miner.on('connection-state', state => {
             if (state === Nimiq.BasePoolMiner.ConnectionState.CONNECTING)
                 console.log('Connecting to the pool')
             if (state === Nimiq.BasePoolMiner.ConnectionState.CONNECTED) {
-                console.log('Connected to pool')
+                //TODO Allow work to begin
                 //$.miner.startWork()
             }
-            if (state === Nimiq.BasePoolMiner.ConnectionState.CLOSED)
-                console.log('Connection closed')
         })
         $.miner.on('share', () => {
             Nimiq.storage.shares++
@@ -80,6 +60,9 @@ Nimiq.init(async () => {
     })
     $.consensus.on('lost', () => console.error('Consensus lost'))
     $.blockchain.on('head-changed', () => {
+        // Ignore head changes before we're connected in order to prevent console spam
+        if (!Nimiq.BasePoolMiner.ConnectionState?.CONNECTED) return
+        // Otherwise inform us of a change and reset the current share counter
         console.log(`Head changed to: ${$.blockchain.height}`)
         if (Nimiq.storage.shares > 0) {
             Nimiq.storage.shares = 0
